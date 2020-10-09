@@ -4,6 +4,7 @@ apply plugin: 'kotlin-android'
 android {
     compileSdkVersion 28
     buildToolsVersion "28.0.3"
+    testOptions.unitTests.includeAndroidResources = true
 
     defaultConfig {
         minSdkVersion 18
@@ -37,9 +38,6 @@ android {
             }
         }
     }
-
-    // Gradle automatically adds 'android.test.runner' as a dependency.
-    useLibrary 'android.test.runner'
 
     useLibrary 'android.test.base'
     useLibrary 'android.test.mock'

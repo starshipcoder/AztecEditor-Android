@@ -17,7 +17,9 @@
 
 package org.wordpress.aztec
 
-class AztecPart(val start: Int, val end: Int, val attr: AztecAttributes) {
+import org.wordpress.aztec.spans.IAztecInlineSpan
+
+class AztecPart(val start: Int, val end: Int, val attr: AztecAttributes, val span: IAztecInlineSpan) {
     val isValid: Boolean
         get() = start < end
 }

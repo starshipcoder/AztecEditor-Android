@@ -2,6 +2,7 @@ package org.wordpress.aztec.toolbar
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
@@ -15,11 +16,12 @@ import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.PopupMenu
-import android.widget.PopupMenu.OnMenuItemClickListener
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.widget.PopupMenu.OnMenuItemClickListener
 import androidx.core.content.ContextCompat
 import androidx.core.text.TextUtilsCompat
 import androidx.core.view.ViewCompat
@@ -29,12 +31,15 @@ import org.wordpress.aztec.AztecText.EditorHasChanges.NO_CHANGES
 import org.wordpress.aztec.AztecTextFormat
 import org.wordpress.aztec.ITextFormat
 import org.wordpress.aztec.R
+import org.wordpress.aztec.colorpicker.ColorPickerListener
+import org.wordpress.aztec.colorpicker.ColorPickerView
+import org.wordpress.aztec.formatting.InlineFormatter
 import org.wordpress.aztec.plugins.IMediaToolbarButton
 import org.wordpress.aztec.plugins.IToolbarButton
 import org.wordpress.aztec.source.SourceViewEditText
 import org.wordpress.aztec.util.convertToButtonAccessibilityProperties
-import org.wordpress.aztec.util.setBackgroundDrawableRes
 import org.wordpress.aztec.util.isChecked
+import org.wordpress.aztec.util.setBackgroundDrawableRes
 import java.util.ArrayList
 import java.util.Arrays
 import java.util.Locale
@@ -60,6 +65,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
     private var isExpanded: Boolean = false
     private var isMediaToolbarVisible: Boolean = false
     private var isMediaModeEnabled: Boolean = false
+    private var colorPickerView: ColorPickerView? = null
 
     var editorContentParsedSHA256LastSwitch: ByteArray = ByteArray(0)
     var sourceContentParsedSHA256LastSwitch: ByteArray = ByteArray(0)
@@ -273,7 +279,6 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         val headingButton = findViewById<View>(ToolbarAction.HEADING.buttonId)
 
         when (item?.itemId) {
-        // Heading Menu
             R.id.paragraph -> {
                 aztecToolbarListener?.onToolbarFormatButtonClicked(AztecTextFormat.FORMAT_PARAGRAPH, false)
                 editor?.toggleFormatting(AztecTextFormat.FORMAT_PARAGRAPH)
@@ -328,9 +333,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
                 editor?.toggleFormatting(AztecTextFormat.FORMAT_ORDERED_LIST)
                 toggleListMenuSelection(item.itemId, checked)
 
-                editor?.let {
-                    highlightAppliedStyles(editor!!.selectionStart, editor!!.selectionEnd)
-                }
+                highlightAppliedStyles()
                 return true
             }
             R.id.list_unordered -> {
@@ -338,9 +341,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
                 editor?.toggleFormatting(AztecTextFormat.FORMAT_UNORDERED_LIST)
                 toggleListMenuSelection(item.itemId, checked)
 
-                editor?.let {
-                    highlightAppliedStyles(editor!!.selectionStart, editor!!.selectionEnd)
-                }
+                highlightAppliedStyles()
                 return true
             }
             else -> return false
@@ -387,6 +388,10 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         this.editor!!.setOnSelectionChangedListener(object : AztecText.OnSelectionChangedListener {
             override fun onSelectionChanged(selStart: Int, selEnd: Int) {
                 highlightAppliedStyles(selStart, selEnd)
+                val color = editor.getFirstColor(selStart, selEnd)
+
+                editor.setSpanColor(color)
+                colorPickerView?.setColor(color)
             }
         })
 
@@ -395,6 +400,61 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         } else {
             htmlButton?.visibility = View.VISIBLE
         }
+    }
+
+    override fun setColorPicker(colorPickerView: ColorPickerView) {
+        this.colorPickerView = colorPickerView
+        colorPickerView.setColorPickerListener(object : ColorPickerListener {
+            override fun onPickColor(color: Int) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    findViewById<View>(ToolbarAction.TEXTCOLOR.buttonId).apply {
+                        when (this) {
+                            is ImageButton -> {
+                                this.imageTintList = ColorStateList.valueOf(color)
+                            }
+                            else -> this.setBackgroundColor(color)
+                        }
+                    }
+                }
+
+                editor?.let {
+
+                    if (editor!!.isTextSelected()) {
+                        if (editor?.toggleColor(color) == true) {
+                            colorPickerView.setColor(color)
+                        } else {
+                            colorPickerView.setColor(null)
+                        }
+                    } else {
+                        if (InlineFormatter.DEBUG_SPAN) println("----no text selected editor?.inlineFormatter?.spanColor ${editor?.inlineFormatter?.spanColor}")
+                        if (editor?.inlineFormatter?.spanColor == color) {
+                            editor?.setSpanColor(null)
+                            colorPickerView.setColor(null)
+                        } else  {
+                            editor?.setSpanColor(color)
+                            colorPickerView.setColor(color)
+                        }
+
+                        val actions = getSelectedActions()
+                        val textFormats = ArrayList<ITextFormat>()
+
+                        actions.filter { it.isStylingAction() }
+                                .forEach { textFormats.add(it.textFormats.first()) }
+
+                        if (getSelectedHeadingMenuItem() != null) {
+                            textFormats.add(getSelectedHeadingMenuItem()!!)
+                        }
+
+                        if (getSelectedListMenuItem() != null) {
+                            textFormats.add(getSelectedListMenuItem()!!)
+                        }
+
+                        editor?.setSelectedStyles(textFormats)
+                    }
+                    highlightAppliedStyles()
+                }
+            }
+        })
     }
 
     private fun initView(attrs: AttributeSet?) {
@@ -463,7 +523,11 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         button.setOnClickListener {
             buttonPlugin.toggle()
         }
-        button.setBackgroundDrawableRes(buttonPlugin.action.buttonDrawableRes)
+        if (button is ImageButton) {
+            button.setImageResource(buttonPlugin.action.buttonDrawableRes)
+        } else {
+            button.setBackgroundDrawableRes(buttonPlugin.action.buttonDrawableRes)
+        }
 
         setupMediaButtonForAccessibility(buttonPlugin)
     }
@@ -511,6 +575,10 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
                 val view = findViewById<View>(action.buttonId)
                 if (view?.isChecked == true) actions.add(action)
             }
+
+            if (action == ToolbarAction.TEXTCOLOR) {
+                actions.add(action)
+            }
         }
 
         return actions
@@ -550,7 +618,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         if (!isEditorAttached()) return
 
         // if nothing is selected just mark the style as active
-        if (!editor!!.isTextSelected() && action.actionType == ToolbarActionType.INLINE_STYLE) {
+        if (!editor!!.isTextSelected() && action.actionType == ToolbarActionType.INLINE_STYLE && action != ToolbarAction.TEXTCOLOR) {
             val actions = getSelectedActions()
             val textFormats = ArrayList<ITextFormat>()
 
@@ -570,7 +638,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
         }
 
         // if text is selected and action is styling - toggle the style
-        if (action.isStylingAction() && action != ToolbarAction.HEADING && action != ToolbarAction.LIST) {
+        if (action.isStylingAction() && action != ToolbarAction.HEADING && action != ToolbarAction.LIST && action != ToolbarAction.TEXTCOLOR) {
             aztecToolbarListener?.onToolbarFormatButtonClicked(action.textFormats.first(), false)
             val returnValue = editor!!.toggleFormatting(action.textFormats.first())
 
@@ -581,6 +649,9 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
 
         // other toolbar action
         when (action) {
+            ToolbarAction.TEXTCOLOR -> {
+                colorPickerView?.visibility = if (colorPickerView?.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            }
             ToolbarAction.ADD_MEDIA_COLLAPSE, ToolbarAction.ADD_MEDIA_EXPAND -> {
                 if (aztecToolbarListener != null && aztecToolbarListener!!.onToolbarMediaButtonClicked()) {
                     //event is consumed by listener
@@ -619,7 +690,7 @@ class AztecToolbar : FrameLayout, IAztecToolbar, OnMenuItemClickListener {
 
     private fun highlightAppliedStyles() {
         editor?.let {
-            highlightAppliedStyles(editor!!.selectionStart, editor!!.selectionEnd)
+            highlightAppliedStyles(it.selectionStart, it.selectionEnd)
         }
     }
 

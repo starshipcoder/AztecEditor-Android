@@ -37,13 +37,16 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Spannable
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.text.style.SuggestionSpan
+import android.text.style.UnderlineSpan
 import android.util.AttributeSet
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -59,6 +62,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.ContextCompat
+import androidx.core.text.HtmlCompat
 import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -80,6 +84,7 @@ import org.wordpress.aztec.source.Format
 import org.wordpress.aztec.source.SourceViewEditText
 import org.wordpress.aztec.spans.AztecAudioSpan
 import org.wordpress.aztec.spans.AztecCodeSpan
+import org.wordpress.aztec.spans.AztecColorSpan
 import org.wordpress.aztec.spans.AztecCursorSpan
 import org.wordpress.aztec.spans.AztecDynamicImageSpan
 import org.wordpress.aztec.spans.AztecImageSpan
@@ -87,6 +92,7 @@ import org.wordpress.aztec.spans.AztecListItemSpan
 import org.wordpress.aztec.spans.AztecMediaClickableSpan
 import org.wordpress.aztec.spans.AztecMediaSpan
 import org.wordpress.aztec.spans.AztecURLSpan
+import org.wordpress.aztec.spans.AztecUnderlineSpan
 import org.wordpress.aztec.spans.AztecVideoSpan
 import org.wordpress.aztec.spans.AztecVisualLinebreak
 import org.wordpress.aztec.spans.CommentSpan
@@ -364,6 +370,10 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
 
     fun setCalypsoMode(isCompatibleWithCalypso: Boolean) {
         isInCalypsoMode = isCompatibleWithCalypso
+    }
+
+    fun setSpanColor(color: Int?) {
+        inlineFormatter.spanColor = color
     }
 
     fun setGutenbergMode(isCompatibleWithGutenberg: Boolean) {
@@ -941,6 +951,10 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
     }
 
     fun setSelectedStyles(styles: ArrayList<ITextFormat>) {
+        if (inlineFormatter.spanColor != null && !styles.contains(AztecTextFormat.FORMAT_COLOR)) {
+            styles.add(AztecTextFormat.FORMAT_COLOR)
+        }
+
         isNewStyleSelected = true
         selectedStyles.clear()
         selectedStyles.addAll(styles)
@@ -1126,6 +1140,10 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
         return selectionStart != selectionEnd
     }
 
+    fun toggleColor(color: Int): Boolean {
+        return inlineFormatter.toggleColor(color)
+    }
+
     fun toggleFormatting(textFormat: ITextFormat) {
         history.beforeTextChanged(this@AztecText)
 
@@ -1143,6 +1161,8 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
             AztecTextFormat.FORMAT_CITE,
             AztecTextFormat.FORMAT_UNDERLINE,
             AztecTextFormat.FORMAT_STRIKETHROUGH,
+            AztecTextFormat.FORMAT_COLOR,
+            AztecTextFormat.FORMAT_BACKGROUND,
             AztecTextFormat.FORMAT_CODE -> inlineFormatter.toggle(textFormat)
             AztecTextFormat.FORMAT_BOLD,
             AztecTextFormat.FORMAT_STRONG -> inlineFormatter.toggleAny(ToolbarAction.BOLD.textFormats)
@@ -1178,6 +1198,8 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
             AztecTextFormat.FORMAT_CITE,
             AztecTextFormat.FORMAT_UNDERLINE,
             AztecTextFormat.FORMAT_STRIKETHROUGH,
+            AztecTextFormat.FORMAT_COLOR,
+            AztecTextFormat.FORMAT_BACKGROUND,
             AztecTextFormat.FORMAT_CODE -> return inlineFormatter.containsInlineStyle(format, selStart, selEnd)
             AztecTextFormat.FORMAT_UNORDERED_LIST,
             AztecTextFormat.FORMAT_ORDERED_LIST -> return blockFormatter.containsList(format, selStart, selEnd)
@@ -1404,7 +1426,19 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
     // returns regular or "calypso" html depending on the mode
     // default behavior returns HTML from this text
     fun toHtml(withCursorTag: Boolean = false): String {
-        return toHtml(text, withCursorTag)
+        //remove the underline span use for suggestions
+        val ret = SpannableString(text)
+        val spans = ret.getSpans(0, ret.length, UnderlineSpan::class.java)
+
+        spans.forEach {
+            when (it) {
+                is AztecUnderlineSpan -> {}
+                else -> ret.removeSpan(it)
+            }
+        }
+
+        return HtmlCompat.toHtml(ret, HtmlCompat.TO_HTML_PARAGRAPH_LINES_INDIVIDUAL);
+//        return toHtml(text, withCursorTag)
     }
 
     // general function accepts any Spannable and converts it to regular or "calypso" html
@@ -1633,6 +1667,8 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
         inlineFormatter.removeInlineStyle(AztecTextFormat.FORMAT_STRIKETHROUGH, start, end)
         inlineFormatter.removeInlineStyle(AztecTextFormat.FORMAT_UNDERLINE, start, end)
         inlineFormatter.removeInlineStyle(AztecTextFormat.FORMAT_CODE, start, end)
+        inlineFormatter.removeInlineStyle(AztecTextFormat.FORMAT_COLOR, start, end)
+        inlineFormatter.removeInlineStyle(AztecTextFormat.FORMAT_BACKGROUND, start, end)
     }
 
     fun removeBlockStylesFromRange(start: Int, end: Int, ignoreLineBounds: Boolean = false) {
@@ -2047,6 +2083,19 @@ open class AztecText : AppCompatEditText, TextWatcher, UnknownHtmlSpan.OnUnknown
 
     override fun dispatchHoverEvent(event: MotionEvent): Boolean {
         return if (accessibilityDelegate.onHoverEvent(event)) true else super.dispatchHoverEvent(event)
+    }
+
+    fun getFirstColor(selStart: Int, selEnd: Int): Int? {
+        val start = if (selStart == 0) 0 else selStart - 1
+
+        val array = text.getSpans(start, selEnd, AztecColorSpan::class.java)
+        if (BuildConfig.DEBUG && selStart == selEnd && array.size > 1 && !inlineFormatter.isSameInlineSpanType(array[0], array[1])) {
+            error("Assertion failed array.size ${array.size}")
+        }
+        return when {
+            array.isEmpty() -> null
+            else -> array[0].color
+        }
     }
 
 }

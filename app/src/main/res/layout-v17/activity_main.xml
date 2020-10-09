@@ -12,6 +12,9 @@
         android:layout_alignParentBottom="true">
     </org.wordpress.aztec.toolbar.AztecToolbar>
 
+
+
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -63,5 +66,19 @@
         </FrameLayout>
 
     </ScrollView>
+
+    <org.wordpress.aztec.colorpicker.ColorPickerView
+        android:id="@+id/colorPickerView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/formatting_toolbar"
+        android:background="#FFF"
+        android:padding="10dp"
+        android:visibility="gone"
+        aztec:colorViewCheckedType="checkMark"
+        aztec:colorViewHeight="30dp"
+        aztec:colorViewMarginLeft="2dp"
+        aztec:colorViewMarginRight="2dp"
+        aztec:colorViewWidth="30dp" />
 
 </RelativeLayout>

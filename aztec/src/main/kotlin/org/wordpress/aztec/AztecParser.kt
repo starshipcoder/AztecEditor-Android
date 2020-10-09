@@ -102,7 +102,7 @@ class AztecParser @JvmOverloads constructor(private val alignmentRendering: Alig
         preprocessSpans(data)
 
         // remove any ForegroundColorSpans since they are not needed for parsing html.
-        clearForegroundColorSpans(data)
+        //clearForegroundColorSpans(data)
 
         if (!withCursor) {
             val cursorSpan = data.getSpans(0, data.length, AztecCursorSpan::class.java).firstOrNull()

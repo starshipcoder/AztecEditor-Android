@@ -37,6 +37,8 @@ class AztecCodeSpan(override var attributes: AztecAttributes = AztecAttributes()
         this.codeColor = codeStyle.codeColor
     }
 
+    constructor(span: AztecCodeSpan) : this(InlineFormatter.CodeStyle(span.codeBackground, span.codeBackgroundAlpha, span.codeColor))
+
     override fun updateDrawState(tp: TextPaint?) {
         configureTextPaint(tp)
     }

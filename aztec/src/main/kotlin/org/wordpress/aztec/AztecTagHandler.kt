@@ -28,7 +28,10 @@ import android.text.Spanned
 import androidx.appcompat.content.res.AppCompatResources
 import org.wordpress.aztec.plugins.IAztecPlugin
 import org.wordpress.aztec.plugins.html2visual.IHtmlTagHandler
+import org.wordpress.aztec.source.CssStyleFormatter
 import org.wordpress.aztec.spans.AztecAudioSpan
+import org.wordpress.aztec.spans.AztecBackgroundColorSpan
+import org.wordpress.aztec.spans.AztecColorSpan
 import org.wordpress.aztec.spans.AztecHorizontalRuleSpan
 import org.wordpress.aztec.spans.AztecImageSpan
 import org.wordpress.aztec.spans.AztecMediaClickableSpan
@@ -38,6 +41,7 @@ import org.wordpress.aztec.spans.AztecVideoSpan
 import org.wordpress.aztec.spans.HiddenHtmlSpan
 import org.wordpress.aztec.spans.IAztecAttributedSpan
 import org.wordpress.aztec.spans.IAztecNestable
+import org.wordpress.aztec.spans.IAztecSpan
 import org.wordpress.aztec.spans.createAztecQuoteSpan
 import org.wordpress.aztec.spans.createHeadingSpan
 import org.wordpress.aztec.spans.createHiddenHtmlBlockSpan
@@ -47,6 +51,7 @@ import org.wordpress.aztec.spans.createOrderedListSpan
 import org.wordpress.aztec.spans.createParagraphSpan
 import org.wordpress.aztec.spans.createPreformatSpan
 import org.wordpress.aztec.spans.createUnorderedListSpan
+import org.wordpress.aztec.util.ColorConverter
 import org.wordpress.aztec.util.getLast
 import org.xml.sax.Attributes
 import java.util.ArrayList
@@ -82,8 +87,13 @@ class AztecTagHandler(val context: Context, val plugins: List<IAztecPlugin> = Ar
                 handleElement(output, opening, AztecStrikethroughSpan(tag, AztecAttributes(attributes)))
                 return true
             }
+            COLOR -> {
+                val span = handleColorSpanTag(attributes, tag, nestingLevel)
+                handleElement(output, opening, span)
+                return true
+            }
             SPAN -> {
-                val span = createHiddenHtmlSpan(tag, AztecAttributes(attributes), nestingLevel, alignmentRendering)
+                val span = handleBackgroundColorSpanTag(attributes, tag, nestingLevel)
                 handleElement(output, opening, span)
                 return true
             }
@@ -152,6 +162,28 @@ class AztecTagHandler(val context: Context, val plugins: List<IAztecPlugin> = Ar
             }
         }
         return false
+    }
+
+    private fun handleColorSpanTag(attributes: Attributes, tag: String, nestingLevel: Int): IAztecSpan {
+        val attrs = AztecAttributes(attributes)
+        return if (CssStyleFormatter.containsStyleAttribute(attrs, CssStyleFormatter.CSS_COLOR_ATTRIBUTE) || (tagStack.isNotEmpty() && tagStack.last() is AztecColorSpan)) {
+            val att = CssStyleFormatter.getStyleAttribute(attrs, CssStyleFormatter.CSS_COLOR_ATTRIBUTE)
+            val color = ColorConverter.getColorInt(att)
+            AztecColorSpan(color)
+        } else {
+            createHiddenHtmlSpan(tag, attrs, nestingLevel, alignmentRendering)
+        }
+    }
+
+    private fun handleBackgroundColorSpanTag(attributes: Attributes, tag: String, nestingLevel: Int): IAztecSpan {
+        val attrs = AztecAttributes(attributes)
+        return if (CssStyleFormatter.containsStyleAttribute(attrs, CssStyleFormatter.CSS_BACKGROUND_COLOR_ATTRIBUTE) || (tagStack.isNotEmpty() && tagStack.last() is AztecBackgroundColorSpan)) {
+            val att = CssStyleFormatter.getStyleAttribute(attrs, CssStyleFormatter.CSS_BACKGROUND_COLOR_ATTRIBUTE)
+            val color = ColorConverter.getColorInt(att)
+            AztecBackgroundColorSpan(color)
+        } else {
+            createHiddenHtmlSpan(tag, attrs, nestingLevel, alignmentRendering)
+        }
     }
 
     private fun processTagHandlerPlugins(tag: String, opening: Boolean, output: Editable, attributes: Attributes, nestingLevel: Int): Boolean {
@@ -235,6 +267,7 @@ class AztecTagHandler(val context: Context, val plugins: List<IAztecPlugin> = Ar
         private val STRIKETHROUGH_DEL = "del"
         private val DIV = "div"
         private val SPAN = "span"
+        private val COLOR = "color"
         private val FIGURE = "figure"
         private val FIGCAPTION = "figcaption"
         private val SECTION = "section"

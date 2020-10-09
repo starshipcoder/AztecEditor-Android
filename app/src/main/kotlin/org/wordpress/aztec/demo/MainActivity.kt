@@ -43,8 +43,11 @@ import org.wordpress.aztec.AztecText
 import org.wordpress.aztec.Html
 import org.wordpress.aztec.IHistoryListener
 import org.wordpress.aztec.ITextFormat
+import org.wordpress.aztec.colorpicker.ColorPickerView
 import org.wordpress.aztec.glideloader.GlideImageLoader
 import org.wordpress.aztec.glideloader.GlideVideoThumbnailLoader
+import org.wordpress.aztec.plugins.CssBackgroundColorPlugin
+import org.wordpress.aztec.plugins.CssColorPlugin
 import org.wordpress.aztec.plugins.CssUnderlinePlugin
 import org.wordpress.aztec.plugins.IMediaToolbarButton
 import org.wordpress.aztec.plugins.shortcodes.AudioShortcodePlugin
@@ -89,6 +92,7 @@ open class MainActivity : AppCompatActivity(),
         private val BOLD = "<b>Bold</b><br>"
         private val ITALIC = "<i style=\"color:darkred\">Italic</i><br>"
         private val UNDERLINE = "<u style=\"color:lime\">Underline</u><br>"
+        private val BACKGROUND = "<span style=\"background-color:#087BDE\">BACK<b>GROUND</b></span><br>"
         private val STRIKETHROUGH = "<s style=\"color:#ff666666\" class=\"test\">Strikethrough</s><br>" // <s> or <strike> or <del>
         private val ORDERED = "<ol style=\"color:green\"><li>Ordered</li><li>should have color</li></ol>"
         private val ORDERED_WITH_START = "<h4>Start in 10 List:</h4>" +
@@ -185,6 +189,7 @@ open class MainActivity : AppCompatActivity(),
                         BOLD +
                         ITALIC +
                         UNDERLINE +
+                        BACKGROUND +
                         STRIKETHROUGH +
                         ORDERED +
                         ORDERED_WITH_START +
@@ -390,6 +395,7 @@ open class MainActivity : AppCompatActivity(),
         val visualEditor = findViewById<AztecText>(R.id.aztec)
         val sourceEditor = findViewById<SourceViewEditText>(R.id.source)
         val toolbar = findViewById<AztecToolbar>(R.id.formatting_toolbar)
+        val colorPicker = findViewById<ColorPickerView>(R.id.colorPickerView)
 
         visualEditor.externalLogger = object : AztecLog.ExternalLogger {
             override fun log(message: String) {
@@ -449,6 +455,7 @@ open class MainActivity : AppCompatActivity(),
                 .addPlugin(galleryButton)
                 .addPlugin(cameraButton)
 
+
         // initialize the plugins, text & HTML
         if (!isRunningTest) {
             aztec.visualEditor.enableCrashLogging(object : AztecExceptionHandler.ExceptionHandlerHelper {
@@ -456,12 +463,15 @@ open class MainActivity : AppCompatActivity(),
                     return true
                 }
             })
+            aztec.toolbar.setColorPicker(colorPicker)
             aztec.visualEditor.setCalypsoMode(false)
             aztec.sourceEditor?.setCalypsoMode(false)
 
             aztec.sourceEditor?.displayStyledAndFormattedHtml(EXAMPLE)
 
             aztec.addPlugin(CssUnderlinePlugin())
+            aztec.addPlugin(CssBackgroundColorPlugin())
+            aztec.addPlugin(CssColorPlugin())
         }
 
         if (savedInstanceState == null) {
