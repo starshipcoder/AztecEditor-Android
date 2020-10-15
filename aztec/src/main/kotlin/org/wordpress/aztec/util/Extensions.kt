@@ -72,7 +72,7 @@ fun ClipData.Item.coerceToHtmlText(parser: AztecParser): String {
  * Some of the toggle button controls that exist on the Aztec formatting toolbar act as buttons but are
  * announced as switches so this function converts the accessibility properties to that of a button.
  */
-fun ToggleButton.convertToButtonAccessibilityProperties() {
+fun View.convertToButtonAccessibilityProperties() {
     ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
         override fun onInitializeAccessibilityNodeInfo(host: View?, info: AccessibilityNodeInfoCompat?) {
             super.onInitializeAccessibilityNodeInfo(host, info)
@@ -87,8 +87,22 @@ fun ToggleButton.convertToButtonAccessibilityProperties() {
  * Method sets a customisable background drawable to all the toolbar buttons.
  * The AztecToolbarStyle can be overridden in the main app module to customise the color of the toolbar buttons.
  */
-fun ToggleButton.setBackgroundDrawableRes(@DrawableRes backgroundDrawableRes: Int) {
+fun View.setBackgroundDrawableRes(@DrawableRes backgroundDrawableRes: Int) {
     val wrapper = ContextThemeWrapper(context, R.style.AztecToolbarStyle)
     val drawable = AppCompatResources.getDrawable(wrapper, backgroundDrawableRes)
     this.background = drawable
 }
+
+var View.isChecked: Boolean
+    get() {
+        return when (this) {
+            is ToggleButton -> isChecked
+            else -> isSelected
+        }
+    }
+    set(checked) {
+        when (this) {
+            is ToggleButton -> isChecked = checked
+            else -> isSelected = checked
+        }
+    }
