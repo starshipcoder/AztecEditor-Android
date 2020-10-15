@@ -23,7 +23,7 @@
     <dimen name="block_vertical_padding">8dp</dimen>
     <dimen name="heading_vertical_padding">8dp</dimen>
     <dimen name="spacing_extra">0dp</dimen>
-    <item type="dimen" format="string" name="spacing_multiplier">1.0</item>
+    <dimen type="dimen" format="float" name="spacing_multiplier">1.0</dimen>
 
     <!-- TOOLBAR -->
     <dimen name="aztec_format_bar_height">48dp</dimen>
